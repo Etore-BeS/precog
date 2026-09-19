@@ -1,0 +1,60 @@
+# Brazil OSINT source catalog (public / official / academic).
+# Credit: inspiration from Unishka OSINT maps — verify each source before use.
+# Legal: only passive public data; respect LGPD; no illegal scrapers.
+
+sources:
+  - id: receita_cnpj
+    name: Receita Federal / CNPJ public APIs
+    type: company
+    url: https://www.gov.br/receitafederal/
+    notes: Prefer BrasilAPI or official open data; rate-limit; cache.
+
+  - id: brasilapi_cnpj
+    name: BrasilAPI CNPJ
+    type: company
+    url: https://brasilapi.com.br/docs#tag/CNPJ
+    notes: Community API over public CNPJ data.
+
+  - id: portal_transparencia
+    name: Portal da Transparência
+    type: public_sector
+    url: https://portaldatransparencia.gov.br/
+    notes: Public spending, CEIS/CNEP lists.
+
+  - id: diario_oficial
+    name: Diário Oficial da União / estaduais
+    type: gazette
+    url: https://www.in.gov.br/
+    notes: Public notices; use official search UIs/APIs.
+
+  - id: ibge
+    name: IBGE
+    type: geo_stats
+    url: https://www.ibge.gov.br/
+    notes: Municipal codes, demographics.
+
+  - id: cadastro_ambiental
+    name: Cadastro Ambiental Rural / SICAR
+    type: environmental
+    url: https://www.car.gov.br/
+    notes: Public rural environmental registry layers where published.
+
+  - id: dados_abertos_gov
+    name: Dados Abertos Brasil
+    type: open_data
+    url: https://dados.gov.br/
+    notes: Catalog of open government datasets.
+
+skills:
+  - id: empresa
+    description: Company footprint via CNPJ + transparency + gazettes
+    tools: [cnpj_lookup, brazil_sources]
+  - id: pessoa_publica
+    description: Public-figure OSINT only (no CPF fishing)
+    tools: [brazil_sources, cpf_guard]
+  - id: transparencia
+    description: Public spending / sanctions lists
+    tools: [brazil_sources]
+  - id: geo_ambiental
+    description: Geo / environmental public layers
+    tools: [brazil_sources]
