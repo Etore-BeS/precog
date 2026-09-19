@@ -7,7 +7,10 @@ Inspired by [Firegod AI](https://github.com/Firegod1991/firegod-ai) (clean-room;
 ## Quick start (~1 hour path)
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+# bash/zsh: source .venv/bin/activate
+# fish:     source .venv/bin/activate.fish
+source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env   # add OPENAI_API_KEY or OPENROUTER_API_KEY; Telegram optional
 
@@ -22,6 +25,8 @@ Docker + Kali sidecar (no `--privileged`):
 
 ```bash
 docker compose --profile kali up --build
+# agent stays on: precog telegram
+# one-shot: docker compose run --rm agent precog doctor
 ```
 
 ## CLI

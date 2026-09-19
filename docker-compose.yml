@@ -4,22 +4,31 @@ services:
       context: .
       dockerfile: docker/Dockerfile.agent
     env_file: .env
+    environment:
+      KALI_ENABLED: ${KALI_ENABLED:-true}
     volumes:
       - ./reports:/app/reports
       - ./audit_logs:/app/audit_logs
       - ./config:/app/config:ro
     networks: [precog]
+    restart: unless-stopped
     profiles: ["", "kali", "ollama"]
 
   kali:
     build:
       context: ./kali
     container_name: precog-kali
-    # intentionally NOT privileged
     security_opt: ["no-new-privileges:true"]
     read_only: false
     networks: [precog]
     profiles: ["kali"]
+    restart: unless-stopped
+    command: ["sleep", "infinity"]
+    healthcheck:
+      test: ["CMD", "nmap", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   ollama:
     image: ollama/ollama:latest

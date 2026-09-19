@@ -12,4 +12,5 @@ COPY config ./config
 RUN pip install --no-cache-dir -e .
 
 ENV PYTHONUNBUFFERED=1
-CMD ["precog", "doctor"]
+# Default: long-poll Telegram. Override with `docker compose run agent precog doctor`
+CMD ["precog", "telegram"]
