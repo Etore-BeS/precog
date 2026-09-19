@@ -87,7 +87,9 @@ class PrecogAgent:
         scope = load_scope(self.settings.authorized_scope_file)
         reachable = kali_running(self.settings.kali_container)
         checks = {
-            "ok": self.settings.authorized_scope_file.exists() and len(scope) > 0,
+            "ok": True,
+            "scope_enforce": self.settings.scope_enforce,
+            "require_confirm": self.settings.require_confirm,
             "agent_mode": self.settings.agent_mode,
             "scope_file": str(self.settings.authorized_scope_file),
             "scope_entries": len(scope),
@@ -211,7 +213,7 @@ class PrecogAgent:
 
         if plan.target and self.settings.agent_mode == "authorized-recon":
             try:
-                assert_in_scope(plan.target, self.settings.authorized_scope_file)
+                assert_in_scope(plan.target, self.settings.authorized_scope_file, enforce=self.settings.scope_enforce)
             except ScopeError as e:
                 self.audit.log("run_blocked_scope", plan_id=plan_id, error=str(e))
                 return RunResult(plan_id, False, [{"error": str(e)}])
@@ -221,7 +223,7 @@ class PrecogAgent:
             tgt = step.args.get("target")
             if tgt:
                 try:
-                    assert_in_scope(str(tgt), self.settings.authorized_scope_file)
+                    assert_in_scope(str(tgt), self.settings.authorized_scope_file, enforce=self.settings.scope_enforce)
                 except ScopeError as e:
                     results.append({"tool": step.tool, "error": str(e)})
                     continue

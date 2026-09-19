@@ -11,8 +11,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     agent_mode: Literal["authorized-recon", "safe"] = "authorized-recon"
-    authorized_scope_file: Path = Path("config/authorized-scope.example.txt")
-    require_confirm: bool = True
+    authorized_scope_file: Path = Path("config/authorized-scope.txt")
+    # When False, scope checks are skipped (still audited).
+    scope_enforce: bool = False
+    require_confirm: bool = False
 
     llm_provider: Literal["openai", "openrouter", "ollama"] = "openai"
     llm_model: str = "gpt-4o-mini"

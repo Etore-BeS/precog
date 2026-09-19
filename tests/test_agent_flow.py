@@ -32,6 +32,7 @@ def test_out_of_scope_blocked(tmp_path: Path):
     settings = Settings(
         authorized_scope_file=scope,
         require_confirm=False,
+        scope_enforce=True,
         audit_dir=tmp_path / "a",
         report_dir=tmp_path / "r",
     )
