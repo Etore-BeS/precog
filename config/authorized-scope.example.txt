@@ -1,0 +1,4 @@
+# Authorized scope — hosts/domains/CIDRs you own or have written auth for.
+scanme.nmap.org
+127.0.0.1
+example.com

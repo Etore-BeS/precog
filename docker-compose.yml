@@ -1,0 +1,35 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agent
+    env_file: .env
+    volumes:
+      - ./reports:/app/reports
+      - ./audit_logs:/app/audit_logs
+      - ./config:/app/config:ro
+    networks: [precog]
+    profiles: ["", "kali", "ollama"]
+
+  kali:
+    build:
+      context: ./kali
+    container_name: precog-kali
+    # intentionally NOT privileged
+    security_opt: ["no-new-privileges:true"]
+    read_only: false
+    networks: [precog]
+    profiles: ["kali"]
+
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes: ["ollama_data:/root/.ollama"]
+    networks: [precog]
+    profiles: ["ollama"]
+
+networks:
+  precog:
+
+volumes:
+  ollama_data:
