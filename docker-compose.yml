@@ -5,14 +5,18 @@ services:
       dockerfile: docker/Dockerfile.agent
     env_file: .env
     environment:
-      KALI_ENABLED: ${KALI_ENABLED:-true}
+      KALI_ENABLED: "true"
+      KALI_CONTAINER: precog-kali
     volumes:
       - ./reports:/app/reports
       - ./audit_logs:/app/audit_logs
       - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     networks: [precog]
     restart: unless-stopped
     profiles: ["", "kali", "ollama"]
+    depends_on:
+      - kali
 
   kali:
     build:
@@ -21,7 +25,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     read_only: false
     networks: [precog]
-    profiles: ["kali"]
+    profiles: ["", "kali"]
     restart: unless-stopped
     command: ["sleep", "infinity"]
     healthcheck:

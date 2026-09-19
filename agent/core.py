@@ -10,10 +10,12 @@ from agent.audit.logger import AuditLogger
 from agent.policies.confirm import ConfirmGate
 from agent.policies.scope import ScopeError, assert_in_scope, load_scope
 from agent.settings import Settings, get_settings
-from agent.tools.builtin import extract_target
+from agent.tools.builtin import extract_cnpj, extract_target
+from agent.tools.kali import kali_running
 from agent.tools.registry import ToolRegistry, default_registry
+from agent.workflows.catalog import WORKFLOWS, workflow_steps
 
-PASSIVE = ["dns_lookup", "whois", "http_headers", "brazil_sources"]
+PASSIVE = ["dns_lookup", "whois", "http_headers", "crtsh_subdomains", "security_headers_check", "brazil_sources"]
 
 
 @dataclass
@@ -31,6 +33,7 @@ class Plan:
     target: str | None
     steps: list[PlanStep]
     mode: str
+    workflow: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -39,6 +42,7 @@ class Plan:
             "objective": self.objective,
             "target": self.target,
             "mode": self.mode,
+            "workflow": self.workflow,
             "created_at": self.created_at,
             "steps": [asdict(s) for s in self.steps],
         }
@@ -47,6 +51,7 @@ class Plan:
         lines = [
             f"Plan `{self.id}`",
             f"Objective: {self.objective}",
+            f"Workflow: {self.workflow or 'generic'}",
             f"Target: {self.target or '(none)'}",
             f"Mode: {self.mode}",
             "Steps:",
@@ -80,6 +85,7 @@ class PrecogAgent:
 
     def doctor(self) -> dict[str, Any]:
         scope = load_scope(self.settings.authorized_scope_file)
+        reachable = kali_running(self.settings.kali_container)
         checks = {
             "ok": self.settings.authorized_scope_file.exists() and len(scope) > 0,
             "agent_mode": self.settings.agent_mode,
@@ -91,6 +97,9 @@ class PrecogAgent:
             "telegram_token_set": bool(self.settings.telegram_bot_token),
             "telegram_allowlist": len(self.settings.allowed_chat_ids),
             "kali_enabled": self.settings.kali_enabled,
+            "kali_reachable": reachable,
+            "kali_container": self.settings.kali_container,
+            "workflows": list(WORKFLOWS),
             "tools": [t.name for t in self.registry.list()],
         }
         self.audit.log("doctor", checks=checks)
@@ -101,46 +110,83 @@ class PrecogAgent:
         objective: str,
         target: str | None = None,
         include_active: bool = False,
+        workflow: str | None = None,
+        cnpj: str | None = None,
     ) -> Plan:
+        # auto-pick workflow hints
+        low = objective.lower()
+        if workflow is None:
+            if "kyc" in low or extract_cnpj(objective):
+                if "kyc" in low or "empresa" in low:
+                    workflow = "kyc_empresa"
+            elif "vuln" in low or "nmap" in low:
+                workflow = "vuln_map"
+            elif "br osint" in low or low.startswith("br "):
+                workflow = "br_osint"
+            elif "recon" in low or "domain" in low:
+                workflow = "domain_recon"
+
         tgt = target or extract_target(objective)
-        steps: list[PlanStep] = []
-        for name in PASSIVE:
-            tool = self.registry.get(name)
-            args: dict[str, Any] = {}
-            if name != "brazil_sources":
-                if not tgt:
-                    continue
-                args = {"target": tgt}
-            steps.append(
-                PlanStep(
-                    tool=name,
-                    args=args,
-                    risk=tool.risk,
-                    requires_confirm=tool.requires_confirm,
-                )
+        cnpj_v = cnpj or extract_cnpj(objective)
+
+        if workflow:
+            raw = workflow_steps(
+                workflow,
+                objective,
+                self.registry,
+                target=tgt,
+                cnpj=cnpj_v,
+                include_active=include_active or workflow == "vuln_map",
             )
-        digits = "".join(ch for ch in objective if ch.isdigit())
-        if len(digits) == 14:
-            tool = self.registry.get("cnpj_lookup")
-            steps.append(PlanStep(tool="cnpj_lookup", args={"cnpj": digits}, risk=tool.risk))
-        if include_active and tgt and self.settings.agent_mode == "authorized-recon":
-            tool = self.registry.get("nmap_top_ports")
-            steps.append(
+            steps = [
                 PlanStep(
-                    tool="nmap_top_ports",
-                    args={"target": tgt},
-                    risk=tool.risk,
-                    requires_confirm=True,
+                    tool=s["tool"],
+                    args=s["args"],
+                    risk=s["risk"],
+                    requires_confirm=s["requires_confirm"],
                 )
-            )
-        if not steps:
-            steps.append(PlanStep(tool="brazil_sources", args={}, risk="passive"))
+                for s in raw
+            ]
+        else:
+            steps = []
+            for name in PASSIVE:
+                tool = self.registry.get(name)
+                args: dict[str, Any] = {}
+                if name != "brazil_sources":
+                    if not tgt:
+                        continue
+                    args = {"target": tgt}
+                steps.append(
+                    PlanStep(
+                        tool=name,
+                        args=args,
+                        risk=tool.risk,
+                        requires_confirm=tool.requires_confirm,
+                    )
+                )
+            if cnpj_v:
+                tool = self.registry.get("cnpj_lookup")
+                steps.append(PlanStep(tool="cnpj_lookup", args={"cnpj": cnpj_v}, risk=tool.risk))
+            if include_active and tgt and self.settings.agent_mode == "authorized-recon":
+                tool = self.registry.get("nmap_top_ports")
+                steps.append(
+                    PlanStep(
+                        tool="nmap_top_ports",
+                        args={"target": tgt},
+                        risk=tool.risk,
+                        requires_confirm=True,
+                    )
+                )
+            if not steps:
+                steps.append(PlanStep(tool="brazil_sources", args={}, risk="passive"))
+
         plan = Plan(
             id=str(uuid4())[:8],
             objective=objective,
             target=tgt,
             steps=steps,
             mode=self.settings.agent_mode,
+            workflow=workflow,
         )
         self.plans[plan.id] = plan
         self.audit.log("plan_created", plan=plan.to_dict())
@@ -203,6 +249,9 @@ class PrecogAgent:
             for t in self.registry.list()
         ]
 
+    def list_workflows(self) -> dict[str, str]:
+        return dict(WORKFLOWS)
+
     def _write_report(self, plan: Plan, results: list[dict[str, Any]]) -> str:
         self.settings.report_dir.mkdir(parents=True, exist_ok=True)
         md = self.settings.report_dir / f"report-{plan.id}.md"
@@ -213,6 +262,7 @@ class PrecogAgent:
                     "",
                     f"- Created: {plan.created_at}",
                     f"- Mode: {plan.mode}",
+                    f"- Workflow: {plan.workflow or 'generic'}",
                     f"- Objective: {plan.objective}",
                     f"- Target: {plan.target}",
                     "",
@@ -223,7 +273,7 @@ class PrecogAgent:
                     "```",
                     "",
                     "---",
-                    "Authorized use only. Inspired by Firegod AI (clean-room).",
+                    "Authorized use only. Kali tools via allowlisted docker exec. Inspired by Firegod AI (clean-room).",
                 ]
             ),
             encoding="utf-8",

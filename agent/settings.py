@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     telegram_allowed_chat_ids: str = ""
 
     kali_container: str = "precog-kali"
-    kali_enabled: bool = False
+    kali_enabled: bool = True
 
     audit_dir: Path = Path("audit_logs")
     report_dir: Path = Path("reports")

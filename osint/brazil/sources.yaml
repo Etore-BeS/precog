@@ -1,60 +1,108 @@
-# Brazil OSINT source catalog (public / official / academic).
-# Credit: inspiration from Unishka OSINT maps — verify each source before use.
-# Legal: only passive public data; respect LGPD; no illegal scrapers.
+# Brazil OSINT source catalog (public / official).
+# Credit: Unishka OSINT maps inspiration — verify each source before use.
+# Legal: passive public data only; LGPD; no illegal scrapers; no CPF fishing.
 
 sources:
   - id: receita_cnpj
-    name: Receita Federal / CNPJ public APIs
+    name: Receita Federal / CNPJ
     type: company
+    tags: [kyc, company]
     url: https://www.gov.br/receitafederal/
-    notes: Prefer BrasilAPI or official open data; rate-limit; cache.
+    notes: Prefer BrasilAPI; rate-limit.
 
   - id: brasilapi_cnpj
     name: BrasilAPI CNPJ
     type: company
+    tags: [kyc, company, api]
     url: https://brasilapi.com.br/docs#tag/CNPJ
     notes: Community API over public CNPJ data.
+
+  - id: opensanctions_br
+    name: OpenSanctions (Brazil-related)
+    type: sanctions
+    tags: [kyc, sanctions]
+    url: https://www.opensanctions.org/
+    notes: PEPs / sanctions; use search API.
 
   - id: portal_transparencia
     name: Portal da Transparência
     type: public_sector
+    tags: [kyc, transparency]
     url: https://portaldatransparencia.gov.br/
-    notes: Public spending, CEIS/CNEP lists.
+    notes: CEIS/CNEP, public spending.
+
+  - id: cgu_ceis
+    name: CEIS / CNEP (CGU)
+    type: sanctions
+    tags: [kyc, sanctions]
+    url: https://portaldatransparencia.gov.br/sancoes/consulta
+    notes: Public sanctions lists.
 
   - id: diario_oficial
-    name: Diário Oficial da União / estaduais
+    name: Diário Oficial da União
     type: gazette
+    tags: [company, gazette]
     url: https://www.in.gov.br/
-    notes: Public notices; use official search UIs/APIs.
+
+  - id: tse_divulgacand
+    name: TSE DivulgaCandContas
+    type: electoral
+    tags: [public_figure]
+    url: https://divulgacandcontas.tse.jus.br/
+    notes: Candidates / campaign finance — public only.
+
+  - id: cnj_datajud
+    name: CNJ / DataJud links
+    type: courts
+    tags: [courts]
+    url: https://www.cnj.jus.br/
+
+  - id: comex_stat
+    name: Comex Stat
+    type: trade
+    tags: [company, trade]
+    url: https://comexstat.mdic.gov.br/
+
+  - id: jucesp
+    name: JUCESP (SP commercial board)
+    type: company
+    tags: [company, junta]
+    url: https://www.jucesponline.sp.gov.br/
 
   - id: ibge
     name: IBGE
     type: geo_stats
+    tags: [geo]
     url: https://www.ibge.gov.br/
-    notes: Municipal codes, demographics.
 
-  - id: cadastro_ambiental
-    name: Cadastro Ambiental Rural / SICAR
+  - id: mapbiomas
+    name: MapBiomas
     type: environmental
-    url: https://www.car.gov.br/
-    notes: Public rural environmental registry layers where published.
+    tags: [geo, environmental]
+    url: https://brasil.mapbiomas.org/
 
   - id: dados_abertos_gov
     name: Dados Abertos Brasil
     type: open_data
+    tags: [open_data]
     url: https://dados.gov.br/
-    notes: Catalog of open government datasets.
 
 skills:
   - id: empresa
-    description: Company footprint via CNPJ + transparency + gazettes
-    tools: [cnpj_lookup, brazil_sources]
+    description: Company footprint via CNPJ + transparency + sanctions
+    tools: [kyc_empresa, cnpj_lookup, opensanctions_search, brazil_sources]
+  - id: domain_recon
+    description: Domain mapping + optional Kali nmap
+    tools: [dns_lookup, whois, http_headers, crtsh_subdomains, security_headers_check, nmap_top_ports]
+  - id: vuln_map
+    description: Security headers + Kali nmap top ports
+    tools: [security_headers_check, nmap_top_ports]
   - id: pessoa_publica
     description: Public-figure OSINT only (no CPF fishing)
     tools: [brazil_sources, cpf_guard]
   - id: transparencia
     description: Public spending / sanctions lists
-    tools: [brazil_sources]
+    tools: [brazil_sources, opensanctions_search]
   - id: geo_ambiental
     description: Geo / environmental public layers
     tools: [brazil_sources]

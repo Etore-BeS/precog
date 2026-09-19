@@ -9,6 +9,7 @@ from rich.console import Console
 
 from agent.core import PrecogAgent
 from agent.settings import get_settings
+from agent.workflows.catalog import WORKFLOWS
 
 console = Console()
 API = "https://api.telegram.org"
@@ -52,23 +53,7 @@ class TelegramBot:
     def _allowed(self, chat_id: int) -> bool:
         return bool(self.allow) and chat_id in self.allow
 
-    def handle_message(self, chat_id: int, text: str) -> None:
-        if not self._allowed(chat_id):
-            self.send(chat_id, "Unauthorized chat. Set TELEGRAM_ALLOWED_CHAT_IDS.")
-            self.agent.audit.log("telegram_denied", chat_id=chat_id)
-            return
-        text = (text or "").strip()
-        if text.startswith("/start"):
-            self.send(chat_id, "Precog online. Send an objective, e.g. recon scanme.nmap.org")
-            return
-        if text.startswith("/doctor"):
-            self.send(chat_id, json.dumps(self.agent.doctor(), indent=2, default=str)[:3500])
-            return
-        if text.startswith("/tools"):
-            self.send(chat_id, ", ".join(t["name"] for t in self.agent.list_tools()))
-            return
-
-        plan = self.agent.plan(text, include_active="--active" in text)
+    def _offer_plan(self, chat_id: int, plan) -> None:
         markup = {
             "inline_keyboard": [[
                 {"text": "Approve", "callback_data": f"approve:{plan.id}"},
@@ -76,6 +61,67 @@ class TelegramBot:
             ]]
         }
         self.send(chat_id, plan.summary_text() + "\n\nApprove to run.", reply_markup=markup)
+
+    def handle_message(self, chat_id: int, text: str) -> None:
+        if not self._allowed(chat_id):
+            self.send(chat_id, "Unauthorized chat. Set TELEGRAM_ALLOWED_CHAT_IDS.")
+            self.agent.audit.log("telegram_denied", chat_id=chat_id)
+            return
+        text = (text or "").strip()
+        if text.startswith("/start") or text.startswith("/help"):
+            wf = "\n".join(f"• {k}: {v}" for k, v in WORKFLOWS.items())
+            self.send(
+                chat_id,
+                "Precog online.\n"
+                "/doctor /tools /workflows /kali\n"
+                "/workflow domain_recon example.com\n"
+                "/workflow vuln_map example.com\n"
+                "/workflow kyc_empresa 00000000000191\n"
+                "/workflow br_osint\n\n"
+                f"Workflows:\n{wf}",
+            )
+            return
+        if text.startswith("/doctor"):
+            self.send(chat_id, json.dumps(self.agent.doctor(), indent=2, default=str)[:3500])
+            return
+        if text.startswith("/tools"):
+            self.send(chat_id, ", ".join(t["name"] for t in self.agent.list_tools()))
+            return
+        if text.startswith("/workflows"):
+            self.send(chat_id, "\n".join(f"{k}: {v}" for k, v in self.agent.list_workflows().items()))
+            return
+        if text.startswith("/kali"):
+            d = self.agent.doctor()
+            self.send(
+                chat_id,
+                f"kali_enabled={d.get('kali_enabled')} reachable={d.get('kali_reachable')} "
+                f"container={d.get('kali_container')}",
+            )
+            return
+        if text.startswith("/workflow"):
+            parts = text.split(maxsplit=2)
+            if len(parts) < 2:
+                self.send(chat_id, "Usage: /workflow NAME [target|cnpj]")
+                return
+            name = parts[1].strip()
+            rest = parts[2].strip() if len(parts) > 2 else ""
+            try:
+                plan = self.agent.plan(
+                    rest or name,
+                    workflow=name,
+                    target=None if name == "kyc_empresa" else (rest or None),
+                    cnpj=rest if name == "kyc_empresa" else None,
+                    include_active=name == "vuln_map",
+                )
+            except Exception as e:  # noqa: BLE001
+                self.send(chat_id, f"Workflow error: {e}")
+                return
+            self._offer_plan(chat_id, plan)
+            return
+
+        include_active = "--active" in text or "nmap" in text.lower() or "vuln" in text.lower()
+        plan = self.agent.plan(text, include_active=include_active)
+        self._offer_plan(chat_id, plan)
 
     def handle_callback(self, chat_id: int, data: str, callback_id: str) -> None:
         if not self._allowed(chat_id):
